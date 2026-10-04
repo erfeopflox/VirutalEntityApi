@@ -1,0 +1,312 @@
+package dev.by1337.virtualentity.core;
+
+import dev.by1337.cmd.Command;
+import dev.by1337.core.ServerVersion;
+import dev.by1337.core.command.bcmd.CommandWrapper;
+import dev.by1337.core.command.bcmd.argument.ArgumentChoice;
+import dev.by1337.core.command.bcmd.argument.ArgumentInt;
+import dev.by1337.core.command.bcmd.requires.RequiresPermission;
+import dev.by1337.virtualentity.api.VirtualEntityApi;
+import dev.by1337.virtualentity.api.entity.EntityAnimation;
+import dev.by1337.virtualentity.api.entity.EquipmentSlot;
+import dev.by1337.virtualentity.api.entity.Pose;
+import dev.by1337.virtualentity.api.entity.VirtualEntityType;
+import dev.by1337.virtualentity.api.particles.ParticleOptions;
+import dev.by1337.virtualentity.api.tracker.PlayerTracker;
+import dev.by1337.virtualentity.api.util.geometry.Direction;
+import dev.by1337.virtualentity.api.util.geometry.Vec3d;
+import dev.by1337.virtualentity.api.util.nbt.MojangNbtReader;
+import dev.by1337.virtualentity.api.util.nbt.impl.CompoundTag;
+import dev.by1337.virtualentity.api.virtual.VirtualAreaEffectCloud;
+import dev.by1337.virtualentity.api.virtual.VirtualEntity;
+import dev.by1337.virtualentity.api.virtual.decoration.VirtualArmorStand;
+import dev.by1337.virtualentity.api.virtual.decoration.VirtualItemFrame;
+import dev.by1337.virtualentity.api.virtual.item.VirtualItem;
+import dev.by1337.virtualentity.api.virtual.monster.VirtualCreeper;
+import dev.by1337.virtualentity.api.virtual.player.VirtualPlayer;
+import dev.by1337.virtualentity.core.mappings.Mappings;
+import dev.by1337.virtualentity.core.mappings.Packets;
+import dev.by1337.virtualentity.core.mappings.VirtualEntityRegistrar;
+import dev.by1337.virtualentity.core.network.Packet;
+import dev.by1337.virtualentity.core.util.MappingsDiffGenerator;
+import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Random;
+import java.util.Set;
+
+public class Main extends JavaPlugin {
+
+    private CommandWrapper commandWrapper;
+
+    public static Command<CommandSender> createCommand(Plugin plugin) {
+        return new Command<CommandSender>("virtualentityapi")
+                .requires(new RequiresPermission<>("virtualentityapi.admin"))
+                .aliases("vea")
+                .aliases("ea")
+                .aliases("entityapi")
+                .sub(new Command<CommandSender>("spawn")
+                        .requires(sender -> sender instanceof Player)
+                        .argument(new ArgumentChoice<>(
+                                "type",
+                                () -> Arrays.stream(VirtualEntityType.values())
+                                        .filter(type ->
+                                                ServerVersion.CURRENT >= type.availableSinceVersion()
+                                                        && (
+                                                        type.removedIn() == -1
+                                                                || ServerVersion.CURRENT < type.removedIn()
+                                                )
+                                        )
+                                        .map(Enum::name)
+                                        .toList()
+                        ))
+
+                        .executor(((sender, args) -> {
+                            Player player = (Player) sender;
+                            VirtualEntityType type = (VirtualEntityType) args.getOrThrow("type", "Use: /vea spawn <type>");
+                            VirtualEntity virtualEntity = VirtualEntityApi.getFactory().create(type);
+                            virtualEntity.setPos(new Vec3d(player.getLocation()));
+                            virtualEntity.tick(Set.of(player));
+
+                            virtualEntity.setPose(Pose.CROAKING);
+                            if (virtualEntity instanceof VirtualPlayer vp) {
+                                Bukkit.getScheduler().runTaskLater(plugin, () -> vp.sendRemovePlayerPacket(player), 60);
+                            }
+                        }))
+                )
+                .sub(new Command<CommandSender>("packetLogs")
+                        .executor(((sender, args) -> {
+                            Packet.debug = !Packet.debug;
+                        }))
+                )
+                .sub(new Command<CommandSender>("test")
+                        .requires(sender -> sender instanceof Player)
+                        .executor(((sender, args) -> {
+                            Player player = (Player) sender;
+                            PlayerTracker tracker = new PlayerTracker(player.getWorld(), new Vec3d(player.getLocation()));
+
+                            VirtualArmorStand armorStand = VirtualArmorStand.create();
+                            final Vec3d center = new Vec3d(player.getLocation());
+                            final Vec3d spawnPos = center.add(0, 0, 0);
+                            armorStand.setPos(spawnPos);
+                            armorStand.setEquipment(EquipmentSlot.HEAD, new ItemStack(Material.RED_SHULKER_BOX));
+                            tracker.addEntity(armorStand);
+
+                            VirtualCreeper creeper = VirtualCreeper.create();
+                            creeper.setPos(new Vec3d(player.getLocation()));
+                            creeper.lookAt(armorStand.getPos());
+                            creeper.setPowered(true);
+                            tracker.addEntity(creeper);
+
+                            VirtualAreaEffectCloud areaEffectCloud = VirtualAreaEffectCloud.create();
+                            areaEffectCloud.setPos(center);
+                            areaEffectCloud.setRadius(1);
+                            areaEffectCloud.setParticle(new ParticleOptions<>(null, Particle.FLAME));
+                            tracker.addEntity(areaEffectCloud);
+
+                            new BukkitRunnable() {
+                                final Random random = new Random();
+                                Vec3d vec = new Vec3d(0, 0, (360D / 7D) / 7);
+                                int tick = 0;
+
+                                @Override
+                                public void run() {
+                                    if (!player.isOnline() || tick >= 200) {
+                                        cancel();
+                                        tracker.removeAll();
+                                        return;
+                                    }
+                                    vec = vec.rotateAroundY(Math.toRadians(5));
+                                    var pos = spawnPos.add(vec);
+                                    armorStand.lookAt(pos);
+                                    armorStand.setPos(pos);
+                                    var loc = pos.toLocation(player.getWorld());
+                                    player.getWorld().spawnParticle(Particle.FLAME, loc, 0);
+                                    creeper.lookAt(armorStand.getPos());
+                                    tracker.tick();
+                                    if (tick % 5 == 0) {
+                                        VirtualItem item = VirtualItem.create();
+                                        item.setPos(armorStand.getPos());
+                                        item.setItem(new ItemStack(Material.values()[random.nextInt(50)]));
+                                        tracker.addEntity(item);
+                                        armorStand.playAnimation(EntityAnimation.CRITICAL_EFFECT);
+                                        armorStand.playAnimation(EntityAnimation.TAKE_DAMAGE);
+                                        creeper.playAnimation(EntityAnimation.TAKE_DAMAGE);
+                                    }
+                                    if (tick % 3 == 0 && areaEffectCloud.getRadius() < 10) {
+                                        areaEffectCloud.setRadius(areaEffectCloud.getRadius() + 0.25f);
+                                    }
+                                    tick++;
+                                }
+                            }.runTaskTimerAsynchronously(plugin, 0, 1);
+                        }))
+                )
+                .sub(new Command<CommandSender>("spawnAll")
+                        .requires(sender -> sender instanceof Player)
+                        .executor(((sender, args) -> {
+                            Player player = (Player) sender;
+                            PlayerTracker tracker = new PlayerTracker(player.getWorld(), new Vec3d(player.getLocation()));
+                            Vec3d pos = new Vec3d(player.getLocation());
+                            for (VirtualEntityType value : VirtualEntityType.values()) {
+                                if (ServerVersion.CURRENT < value.availableSinceVersion()) continue;
+                                if (value.removedIn() != -1 && ServerVersion.CURRENT > value.removedIn())
+                                    continue;
+                                try {
+                                    VirtualEntity entity = VirtualEntityApi.getFactory().create(value);
+                                    entity.setCustomNameVisible(true);
+                                    entity.setCustomName(Component.text(value.name()));
+                                    entity.setNoGravity(true);
+                                    entity.setPos(pos);
+                                    tracker.addEntity(entity);
+                                    pos = pos.add(0, 0, 2);
+                                } catch (Throwable t) {
+                                    System.out.println(value);
+                                    t.printStackTrace();
+                                }
+                            }
+                            tracker.tick();
+                            Bukkit.getServer().getScheduler().runTaskLater(plugin, tracker::removeAll, 2000);
+                        }))
+                )
+                .sub(new Command<CommandSender>("frameTest")
+                        .requires(sender -> sender instanceof Player)
+                        .executor(((sender, args) -> {
+                            Player player = (Player) sender;
+                            VirtualItemFrame frame = VirtualItemFrame.create();
+                            frame.setPos(new Vec3d(player.getLocation()));
+                            frame.setItem(new ItemStack(Material.RED_SHULKER_BOX));
+                            frame.tick(Set.of(player));
+                            new BukkitRunnable() {
+                                Direction[] arr = Direction.values();
+                                int pos = 0;
+
+                                @Override
+                                public void run() {
+                                    if (pos == arr.length) {
+                                        frame.tick(Set.of());
+                                        cancel();
+                                        return;
+                                    }
+                                    frame.setDirection(arr[pos++]);
+                                    frame.tick(Set.of(player));
+                                    frame.respawn();
+                                }
+                            }.runTaskTimerAsynchronously(plugin, 0, 15);
+                        }))
+                )
+                .sub(new Command<CommandSender>("equipmentTest")
+                        .requires(sender -> sender instanceof Player)
+                        .executor(((sender, args) -> {
+                            Player player = (Player) sender;
+                            VirtualArmorStand stand = VirtualArmorStand.create();
+                            stand.setPos(new Vec3d(player.getLocation()));
+                            stand.tick(Set.of(player));
+
+                            new BukkitRunnable() {
+                                EquipmentSlot slot = EquipmentSlot.MAINHAND;
+
+                                @Override
+                                public void run() {
+                                    stand.clearEquipment();
+                                    switch (slot) {
+                                        case MAINHAND -> {
+                                            stand.setEquipment(slot, new ItemStack(Material.DIAMOND_SWORD));
+                                            slot = EquipmentSlot.OFFHAND;
+                                        }
+                                        case OFFHAND -> {
+                                            stand.setEquipment(slot, new ItemStack(Material.NETHERITE_SWORD));
+                                            slot = EquipmentSlot.FEET;
+                                        }
+                                        case FEET -> {
+                                            stand.setEquipment(slot, new ItemStack(Material.DIAMOND_BOOTS));
+                                            slot = EquipmentSlot.LEGS;
+                                        }
+                                        case LEGS -> {
+                                            stand.setEquipment(slot, new ItemStack(Material.DIAMOND_LEGGINGS));
+                                            slot = EquipmentSlot.CHEST;
+                                        }
+                                        case CHEST -> {
+                                            stand.setEquipment(slot, new ItemStack(Material.DIAMOND_CHESTPLATE));
+                                            slot = EquipmentSlot.HEAD;
+                                        }
+                                        case HEAD -> {
+                                            stand.setEquipment(slot, new ItemStack(Material.DIAMOND_HELMET));
+                                            slot = EquipmentSlot.BODY;
+                                        }
+                                        default -> {
+                                            cancel();
+                                            stand.tick(Set.of());
+                                            return;
+                                        }
+                                    }
+                                    stand.tick(Set.of(player));
+                                }
+                            }.runTaskTimerAsynchronously(plugin, 0, 20);
+                        }))
+                ).sub(new Command<CommandSender>("diff")
+                        .argument(new ArgumentInt<>("version"))
+                        .executor(((sender, args) -> {
+                            int current = ServerVersion.CURRENT_PROTOCOL;
+                            int version = (int) args.getOrThrow("version", "version is not selected");
+                            CompoundTag tags1;
+                            CompoundTag tags2;
+                            try (var in = Mappings.getMappingsInputStream(current)) {
+                                tags1 = MojangNbtReader.readCompressed(in);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                            try (var in = Mappings.getMappingsInputStream(version)) {
+                                tags2 = MojangNbtReader.readCompressed(in);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                            String result = MappingsDiffGenerator.createDiff(tags1, tags2);
+                            try {
+                                Path out = plugin.getDataFolder().toPath().resolve(current + "_and_" + version + "_diff.txt");
+                                plugin.getDataFolder().mkdirs();
+                                Files.writeString(out, result, StandardCharsets.UTF_8);
+                                sender.sendMessage("saved to " + out);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+
+                        }))
+                )
+                ;
+    }
+
+    @Override
+    public void onLoad() {
+        SupportedVersions.requireProtocol(ServerVersion.CURRENT_PROTOCOL);
+        Mappings.load();
+        Packets.load();
+        VirtualEntityRegistrar.register();
+    }
+
+    @Override
+    public void onEnable() {
+        commandWrapper = new CommandWrapper(createCommand(this), this);
+        commandWrapper.setPermission("virtualentityapi.admin");
+        commandWrapper.register();
+
+    }
+
+    @Override
+    public void onDisable() {
+        if (commandWrapper != null) commandWrapper.close();
+    }
+
+}

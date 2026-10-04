@@ -1,0 +1,92 @@
+package dev.by1337.virtualentity.api.util.geometry;
+
+import com.google.errorprone.annotations.Immutable;
+import dev.by1337.yaml.codec.RecordYamlCodecBuilder;
+import dev.by1337.yaml.codec.YamlCodec;
+
+@Immutable
+public final class Vec2d {
+    public static final YamlCodec<Vec2d> CODEC = RecordYamlCodecBuilder.mapOf(
+            Vec2d::new,
+            YamlCodec.DOUBLE.fieldOf("x", Vec2d::getX),
+            YamlCodec.DOUBLE.fieldOf("y", Vec2d::getY)
+    );
+
+    public final double x;
+    public final double y;
+
+
+    public Vec2d(double x, double y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public static double distanceSq(double x1, double y1, double x2, double y2) {
+        x1 -= x2;
+        y1 -= y2;
+        return (x1 * x1 + y1 * y1);
+    }
+
+    public static double distance(double x1, double y1, double x2, double y2) {
+        x1 -= x2;
+        y1 -= y2;
+        return Math.sqrt(x1 * x1 + y1 * y1);
+    }
+
+    public double distanceSq(double vx, double vy) {
+        vx -= x;
+        vy -= y;
+        return (vx * vx + vy * vy);
+    }
+
+    public double distanceSq(Vec2d v) {
+        double vx = v.x - this.x;
+        double vy = v.y - this.y;
+        return (vx * vx + vy * vy);
+    }
+
+    public double distance(double vx, double vy) {
+        vx -= x;
+        vy -= y;
+        return Math.sqrt(vx * vx + vy * vy);
+    }
+
+    public double distance(Vec2d v) {
+        double vx = v.x - this.x;
+        double vy = v.y - this.y;
+        return Math.sqrt(vx * vx + vy * vy);
+    }
+
+    public double getX() {
+        return x;
+    }
+
+    public double getY() {
+        return y;
+    }
+
+    @Override
+    public int hashCode() {
+        long bits = 7L;
+        bits = 31L * bits + Double.doubleToLongBits(x);
+        bits = 31L * bits + Double.doubleToLongBits(y);
+        return (int) (bits ^ (bits >> 32));
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) {
+            return true;
+        }
+        if (obj instanceof Vec2d v) {
+            return (x == v.x) && (y == v.y);
+        }
+        return false;
+    }
+
+    @Override
+    public String toString() {
+        return "Vec2d[" + x + ", " + y + "]";
+    }
+
+}

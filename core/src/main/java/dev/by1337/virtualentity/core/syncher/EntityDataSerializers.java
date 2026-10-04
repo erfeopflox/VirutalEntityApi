@@ -1,0 +1,141 @@
+package dev.by1337.virtualentity.core.syncher;
+
+import dev.by1337.core.ServerVersion;
+import dev.by1337.virtualentity.api.annotations.SinceMinecraftVersion;
+import dev.by1337.virtualentity.api.entity.*;
+import dev.by1337.virtualentity.api.entity.npc.VillagerData;
+import dev.by1337.virtualentity.api.particles.ParticleOptions;
+import dev.by1337.virtualentity.api.util.geometry.Direction;
+import dev.by1337.virtualentity.api.util.geometry.Vec3f;
+import dev.by1337.virtualentity.api.util.geometry.Vec3i;
+import dev.by1337.virtualentity.core.mappings.Mappings;
+import dev.by1337.virtualentity.core.network.ByteBufUtil;
+import net.kyori.adventure.text.Component;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.inventory.ItemStack;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
+
+import java.util.*;
+
+public class EntityDataSerializers {
+    private static final Map<String, EntityDataSerializer<?>> SERIALIZERS = new HashMap<>();
+    private static final Map<EntityDataSerializer<?>, Integer> SERIALIZER_TO_ID = new IdentityHashMap<>();
+    private static final Map<EntityDataSerializer<?>, String> SERIALIZER_TO_NAME = new IdentityHashMap<>();
+
+    public static final EntityDataSerializer<Byte> BYTE = register((val, byteBuf) -> {
+        byteBuf.writeByte(val);
+    }, "BYTE");
+
+    public static final EntityDataSerializer<Integer> INT = register(ByteBufUtil::writeVarInt, "INT");
+    public static final EntityDataSerializer<VillagerData> VILLAGER_DATA = register((val, byteBuf) -> {
+        INT.write(val.type().getId(), byteBuf);
+        INT.write(val.profession().getId(), byteBuf);
+        INT.write(val.lvl(), byteBuf);
+    }, "VILLAGER_DATA");
+    public static final EntityDataSerializer<Float> FLOAT = register((val, byteBuf) -> byteBuf.writeFloat(val), "FLOAT");
+    public static final EntityDataSerializer<String> STRING = register(ByteBufUtil::writeUtf, "STRING");
+    public static final EntityDataSerializer<Component> COMPONENT = register(ByteBufUtil::writeComponent, "COMPONENT");
+    public static final EntityDataSerializer<Optional<Component>> OPTIONAL_COMPONENT = register((val, byteBuf) -> {
+        ByteBufUtil.writeOptional(byteBuf, val.orElse(null), ByteBufUtil::writeComponent);
+    }, "OPTIONAL_COMPONENT");
+    public static final EntityDataSerializer<ItemStack> ITEM_STACK = register(ByteBufUtil::writeItemStack, "ITEM_STACK");
+    public static final EntityDataSerializer<BlockData> BLOCK_STATE = register(ByteBufUtil::writeBlockState, "BLOCK_STATE");
+    public static final EntityDataSerializer<Boolean> BOOLEAN = register((val, byteBuf) -> {
+        byteBuf.writeBoolean(val);
+    }, "BOOLEAN");
+    public static final EntityDataSerializer<ParticleOptions<?>> PARTICLE = register(ByteBufUtil::writeParticle, "PARTICLE");
+    public static final EntityDataSerializer<List<ParticleOptions<?>>> PARTICLES = register(ByteBufUtil::writeParticles, "PARTICLES");
+    public static final EntityDataSerializer<Vec3f> ROTATIONS = register(ByteBufUtil::writeVec3f, "ROTATIONS");
+    public static final EntityDataSerializer<Vec3i> BLOCK_POS = register(ByteBufUtil::writeBlockPos, "BLOCK_POS");
+    public static final EntityDataSerializer<Optional<Vec3i>> OPTIONAL_BLOCK_POS = register((val, byteBuf) -> {
+        ByteBufUtil.writeOptional(byteBuf, val.orElse(null), ByteBufUtil::writeBlockPos);
+    }, "OPTIONAL_BLOCK_POS");
+    public static final EntityDataSerializer<Direction> DIRECTION = register(ByteBufUtil::writeEnum, "DIRECTION");
+    public static final EntityDataSerializer<Optional<UUID>> OPTIONAL_LIVING_ENTITY_REFERENCE = register((val, byteBuf) -> {
+        ByteBufUtil.writeOptional(byteBuf, val.orElse(null), ByteBufUtil::writeUUID);
+    }, "OPTIONAL_LIVING_ENTITY_REFERENCE");
+    public static final EntityDataSerializer<OptionalInt> OPTIONAL_UNSIGNED_INT = register((val, byteBuf) -> {
+        // INT.write(val.orElse(-1) + 1, byteBuf);
+        ByteBufUtil.writeVarInt(val.orElse(-1) + 1, byteBuf);
+        //INT.write(val.orElse(-1) + 1, byteBuf);
+    }, "OPTIONAL_UNSIGNED_INT");
+
+    public static final EntityDataSerializer<Pose> POSE = register(ByteBufUtil::writeEnum, "POSE");
+
+    public static final EntityDataSerializer<Quaternionf> QUATERNION = register((val, byteBuf) -> {
+        byteBuf.writeFloat(val.x);
+        byteBuf.writeFloat(val.y);
+        byteBuf.writeFloat(val.z);
+        byteBuf.writeFloat(val.w);
+    }, "QUATERNION");
+
+    public static final EntityDataSerializer<PigVariant> PIG_VARIANT = register(ByteBufUtil::writeEnum, "PIG_VARIANT");
+
+    public static final EntityDataSerializer<ChickenVariant> CHICKEN_VARIANT = register(ByteBufUtil::writeEnum, "CHICKEN_VARIANT");
+
+    public static final EntityDataSerializer<CowVariant> COW_VARIANT = register(ByteBufUtil::writeEnum, "COW_VARIANT");
+
+    public static final EntityDataSerializer<WolfSoundVariant> WOLF_SOUND_VARIANT = register(ByteBufUtil::writeEnum, "WOLF_SOUND_VARIANT");
+
+    public static final EntityDataSerializer<SnifferState> SNIFFER_STATE = register(ByteBufUtil::writeEnum, "SNIFFER_STATE");
+    public static final EntityDataSerializer<CatVariant> CAT_VARIANT = register(ByteBufUtil::writeEnum, "CAT_VARIANT");
+    public static final EntityDataSerializer<FrogVariant> FROG_VARIANT = register(ByteBufUtil::writeEnum, "FROG_VARIANT");
+    public static final EntityDataSerializer<PaintingMotive> PAINTING_VARIANT = register((val, byteBuf) -> {
+        // ByteBufCodecs.holder reserves zero for a direct (inline) holder.
+        ByteBufUtil.writeVarInt(val.getId() + 1, byteBuf);
+    }, "PAINTING_VARIANT");
+    public static final EntityDataSerializer<WolfVariant> WOLF_VARIANT = register(ByteBufUtil::writeEnum, "WOLF_VARIANT");
+    public static final EntityDataSerializer<ArmadilloState> ARMADILLO_STATE = register(ByteBufUtil::writeEnum, "ARMADILLO_STATE");
+    public static final EntityDataSerializer<CopperWeatherState> WEATHERING_COPPER_STATE = register(ByteBufUtil::writeEnum, "WEATHERING_COPPER_STATE");
+    public static final EntityDataSerializer<CopperGolemState> COPPER_GOLEM_STATE = register(ByteBufUtil::writeEnum, "COPPER_GOLEM_STATE");
+    public static final EntityDataSerializer<ZombieNautilusVariant> ZOMBIE_NAUTILUS_VARIANT = register(ByteBufUtil::writeEnum, "ZOMBIE_NAUTILUS_VARIANT");
+    public static final EntityDataSerializer<CatSoundVariant> CAT_SOUND_VARIANT = register(ByteBufUtil::writeEnum, "CAT_SOUND_VARIANT");
+    public static final EntityDataSerializer<CowSoundVariant> COW_SOUND_VARIANT = register(ByteBufUtil::writeEnum, "COW_SOUND_VARIANT");
+    public static final EntityDataSerializer<PigSoundVariant> PIG_SOUND_VARIANT = register(ByteBufUtil::writeEnum, "PIG_SOUND_VARIANT");
+    public static final EntityDataSerializer<ChickenSoundVariant> CHICKEN_SOUND_VARIANT = register(ByteBufUtil::writeEnum, "CHICKEN_SOUND_VARIANT");
+    public static final EntityDataSerializer<Long> LONG = register(ByteBufUtil::writeVarLong, "LONG");
+    public static final EntityDataSerializer<Optional<BlockData>> OPTIONAL_BLOCK_STATE = register((val, buff) -> {
+        if (val.isPresent()) {
+            ByteBufUtil.writeBlockState(val.get(), buff);
+        } else {
+            ByteBufUtil.writeVarInt(0, buff);
+        }
+    }, "OPTIONAL_BLOCK_STATE");
+    public static final EntityDataSerializer<Vector3f> VECTOR3 = register((val, buff) -> {
+        buff.writeFloat(val.x);
+        buff.writeFloat(val.y);
+        buff.writeFloat(val.z);
+    }, "VECTOR3");
+
+    public static final EntityDataSerializer<HumanoidArm> HUMANOID_ARM = register((val, byteBuf) -> ByteBufUtil.writeVarInt(val.getId(), byteBuf), "HUMANOID_ARM");
+
+    @SinceMinecraftVersion("26.3")
+    public static final EntityDataSerializer<dev.by1337.virtualentity.api.entity.DyeColor> DYE_COLOR = register(ByteBufUtil::writeEnum, "DYE_COLOR");
+    // OPTIONAL_GLOBAL_POS unused
+
+    private static <T> EntityDataSerializer<T> register(EntityDataSerializer<T> serializer, String name) {
+        if (SERIALIZERS.putIfAbsent(name, serializer) != null) {
+            throw new IllegalArgumentException("Duplicate serializer: " + name);
+        }
+        Integer id = Mappings.instance.serializerToId().get(name);
+        if (id != null) {
+            SERIALIZER_TO_ID.put(serializer, id);
+        }
+        SERIALIZER_TO_NAME.put(serializer, name);
+        return serializer;
+    }
+
+    public static EntityDataSerializer<?> getByName(String name) {
+        return SERIALIZERS.get(name);
+    }
+
+    public static int getId(EntityDataSerializer<?> serializer) {
+        Integer id = SERIALIZER_TO_ID.get(serializer);
+        if (id == null) {
+            throw new IllegalStateException("Has no EntityDataSerializer id for serializer " + SERIALIZER_TO_NAME.get(serializer) + " Version: " + ServerVersion.CURRENT_ID);
+        }
+        return id;
+    }
+
+}

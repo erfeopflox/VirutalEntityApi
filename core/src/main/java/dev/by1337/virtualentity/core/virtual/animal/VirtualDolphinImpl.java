@@ -1,0 +1,73 @@
+package dev.by1337.virtualentity.core.virtual.animal;
+
+import dev.by1337.virtualentity.api.annotations.RemovedInMinecraftVersion;
+import dev.by1337.virtualentity.api.entity.VirtualEntityType;
+import dev.by1337.virtualentity.api.util.geometry.Vec3i;
+import dev.by1337.virtualentity.core.mappings.Mappings;
+import dev.by1337.virtualentity.core.syncher.EntityDataAccessor;
+import dev.by1337.virtualentity.core.virtual.VirtualAgeableMobImpl;
+
+public class VirtualDolphinImpl extends VirtualAgeableMobImpl implements dev.by1337.virtualentity.api.virtual.animal.VirtualDolphin {
+    private static final EntityDataAccessor<Boolean> GOT_FISH;
+    private static final EntityDataAccessor<Integer> MOISTNESS_LEVEL;
+
+    static {
+
+        GOT_FISH = Mappings.findAccessor("Dolphin", "GOT_FISH");
+        MOISTNESS_LEVEL = Mappings.findAccessor("Dolphin", "MOISTNESS_LEVEL");
+    }
+
+    public VirtualDolphinImpl() {
+        super(VirtualEntityType.DOLPHIN);
+    }
+
+    protected void defineSynchedData() {
+        super.defineSynchedData();
+        entityData.define(GOT_FISH, false);
+        entityData.define(MOISTNESS_LEVEL, 2400);
+    }
+
+    @Override
+    @Deprecated
+    @RemovedInMinecraftVersion("1.21.5")
+    public Vec3i getTreasurePos() {
+        return Vec3i.ZERO;
+    }
+
+    @Override
+    @Deprecated
+    @RemovedInMinecraftVersion("1.21.5")
+    public void setTreasurePos(Vec3i pos) {
+        return;
+    }
+
+    @Override
+    public boolean gotFish() {
+        return this.entityData.get(GOT_FISH);
+    }
+
+    @Override
+    public void setGotFish(boolean flag) {
+        this.entityData.set(GOT_FISH, flag);
+    }
+
+    @Override
+    public int getMoistnessLevel() {
+        return this.entityData.get(MOISTNESS_LEVEL);
+    }
+
+    @Override
+    public void setMoisntessLevel(int level) {
+        this.entityData.set(MOISTNESS_LEVEL, level);
+    }
+
+    @Override
+    public boolean isBaby() {
+        return super.isBaby();
+    }
+
+    @Override
+    public void setBaby(boolean flag) {
+        super.setBaby(flag);
+    }
+}
