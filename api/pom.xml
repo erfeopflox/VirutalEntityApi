@@ -18,6 +18,7 @@
                 <version>3.13.0</version>
                 <configuration>
                     <release>${maven.compiler.release}</release>
+                    <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
             <plugin>
