@@ -9,11 +9,6 @@
     <groupId>dev.by1337.virtualentity.core</groupId>
     <artifactId>VirtualEntityApi</artifactId>
 
-    <properties>
-        <java.version>21</java.version>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
-
     <build>
         <defaultGoal>clean install</defaultGoal>
         <plugins>
@@ -22,8 +17,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
+                    <release>${maven.compiler.release}</release>
                 </configuration>
             </plugin>
             <plugin>
@@ -189,7 +183,6 @@
             <version>2.0.16</version>
             <scope>test</scope>
         </dependency>
-
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
